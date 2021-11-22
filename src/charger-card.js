@@ -41,16 +41,17 @@ class ChargerCard extends LitElement {
   }
 
   get entity() {
-    return this.hass.states[this.config.entity];
+    return this.hass.states[this.getOverride('entity', this.config.entity)];
   }
 
   get chargerId() {
-    return this.hass.states[this.config.entity].attributes['id'];
+    return this.hass.states[this.getOverride('entity', this.config.entity)]
+      .attributes['id'];
   }
 
   get chargerDomain() {
     // if (this.config.domain === undefined) {
-    return cconst.CHARGERDOMAIN;
+    return this.getOverride('CHARGERDOMAIN', cconst.CHARGERDOMAIN);
     // }
   }
 
@@ -61,9 +62,10 @@ class ChargerCard extends LitElement {
       maxChargerCurrent,
       maxCircuitCurrent,
     } = this.getEntities();
-    const circuitRatedCurrent = this.hass.states[this.config.entity].attributes[
-      'circuit_ratedCurrent'
-    ];
+    const circuitRatedCurrent = this.getOverride(
+      'circuitRatedCurrent',
+      this.hass.states[this.config.entity].attributes['circuit_ratedCurrent']
+    );
     const usedChargerLimit = Math.min(
       this.getEntityState(dynamicChargerCurrent),
       this.getEntityState(dynamicCircuitCurrent),
@@ -159,23 +161,28 @@ class ChargerCard extends LitElement {
   }
 
   get entityBasename() {
-    return this.config.entity
+    return this.getOverride('entity', this.config.entity)
       .split('.')[1]
-      .replace(cconst.STATUS_ENTITY_BASE, '');
+      .replace(
+        this.getOverride('STATUS_ENTITY_BASE', cconst.STATUS_ENTITY_BASE),
+        ''
+      );
   }
 
   getEntityId(entity_base) {
-    try {
-      return (
-        entity_base.split('.')[0] +
-        '.' +
-        this.entityBasename +
-        '_' +
-        entity_base.split('.')[1]
-      );
-    } catch (err) {
-      return null;
-    }
+    if (Object.values(cconst.ENTITIES).includes(entity_base))
+      try {
+        return (
+          entity_base.split('.')[0] +
+          '.' +
+          this.entityBasename +
+          '_' +
+          entity_base.split('.')[1]
+        );
+      } catch (err) {
+        return null;
+      }
+    return entity_base;
   }
 
   getEntityBase(entity_id) {
@@ -190,68 +197,45 @@ class ChargerCard extends LitElement {
     }
   }
 
-  getEntities() {
-    const cableLocked = this.getEntity(cconst.ENTITIES.cableLocked);
-    const cableLockedPermanently = this.getEntity(
-      cconst.ENTITIES.cableLockedPermanently
-    );
-    const basicSchedule = this.getEntity(cconst.ENTITIES.basicSchedule);
-    const circuitCurrent = this.getEntity(cconst.ENTITIES.circuitCurrent);
-    const costPerKwh = this.getEntity(cconst.ENTITIES.costPerKwh);
-    const dynamicChargerCurrent = this.getEntity(
-      cconst.ENTITIES.dynamicChargerCurrent
-    );
-    const dynamicCircuitCurrent = this.getEntity(
-      cconst.ENTITIES.dynamicCircuitCurrent
-    );
-    const enableIdleCurrent = this.getEntity(cconst.ENTITIES.enableIdleCurrent);
-    const offlineCircuitCurrent = this.getEntity(
-      cconst.ENTITIES.offlineCircuitCurrent
-    );
-    const inCurrent = this.getEntity(cconst.ENTITIES.inCurrent);
-    const isEnabled = this.getEntity(cconst.ENTITIES.isEnabled);
-    const maxChargerCurrent = this.getEntity(cconst.ENTITIES.maxChargerCurrent);
-    const maxCircuitCurrent = this.getEntity(cconst.ENTITIES.maxCircuitCurrent);
-    const isOnline = this.getEntity(cconst.ENTITIES.isOnline);
-    const outputCurrent = this.getEntity(cconst.ENTITIES.outputCurrent);
-    const reasonForNoCurrent = this.getEntity(
-      cconst.ENTITIES.reasonForNoCurrent
-    );
-    const sessionEnergy = this.getEntity(cconst.ENTITIES.sessionEnergy);
-    const energyPerHour = this.getEntity(cconst.ENTITIES.energyPerHour);
-    const energyLifetime = this.getEntity(cconst.ENTITIES.energyLifetime);
-    const smartCharging = this.getEntity(cconst.ENTITIES.smartCharging);
-    const totalPower = this.getEntity(cconst.ENTITIES.totalPower);
-    const updateAvailable = this.getEntity(cconst.ENTITIES.updateAvailable);
-    const voltage = this.getEntity(cconst.ENTITIES.voltage);
-    const status = this.entity;
+  getOverride(target, defaultValue, attributeValue = 'attribute') {
+    var { override } = this.config;
+    let returnValue = null;
+    if (
+      override &&
+      target in override &&
+      override[target] != '' &&
+      override[target] != defaultValue
+    ) {
+      var replacement = override[target];
+      returnValue =
+        typeof replacement == 'object' && attributeValue in replacement
+          ? this.getEntityAttribute(
+              replacement['entity_id'],
+              replacement[attributeValue]
+            )
+          : this.getEntity(replacement['entity_id']);
+    } else returnValue = this.getEntity(defaultValue);
+    // handle non-entity values
+    if (
+      (typeof returnValue == 'undefined' || returnValue == null) &&
+      typeof replacement != 'object' &&
+      replacement != ''
+    )
+      returnValue = replacement;
+    if (
+      (typeof returnValue == 'undefined' || returnValue == null) &&
+      defaultValue != ''
+    )
+      returnValue = defaultValue;
+    return returnValue;
+  }
 
-    return {
-      cableLocked,
-      cableLockedPermanently,
-      basicSchedule,
-      circuitCurrent,
-      costPerKwh,
-      dynamicChargerCurrent,
-      dynamicCircuitCurrent,
-      enableIdleCurrent,
-      offlineCircuitCurrent,
-      inCurrent,
-      isEnabled,
-      maxChargerCurrent,
-      maxCircuitCurrent,
-      isOnline,
-      outputCurrent,
-      reasonForNoCurrent,
-      sessionEnergy,
-      energyPerHour,
-      energyLifetime,
-      smartCharging,
-      totalPower,
-      updateAvailable,
-      voltage,
-      status,
-    };
+  getEntities() {
+    var entities = {};
+    for (const [key, value] of Object.entries(cconst.ENTITIES)) {
+      entities[key] = this.getOverride(key, value);
+    }
+    return entities;
   }
 
   getEntity(entity_base) {
@@ -288,7 +272,7 @@ class ChargerCard extends LitElement {
 
   getStatsDefault(state) {
     switch (state) {
-      case cconst.CHARGERSTATUS.STANDBY_1: {
+      case this.getOverride('STANDBY_1', cconst.CHARGERSTATUS.STANDBY_1): {
         return [
           {
             entity_id: this.getEntityId(cconst.ENTITIES.sessionEnergy),
@@ -307,7 +291,7 @@ class ChargerCard extends LitElement {
           },
         ];
       }
-      case cconst.CHARGERSTATUS.PAUSED_2: {
+      case this.getOverride('PAUSED_2', cconst.CHARGERSTATUS.PAUSED_2): {
         return [
           {
             calcValue: this.usedChargerLimit,
@@ -331,7 +315,7 @@ class ChargerCard extends LitElement {
           },
         ];
       }
-      case cconst.CHARGERSTATUS.CHARGING_3: {
+      case this.getOverride('CHARGING_3', cconst.CHARGERSTATUS.CHARGING_3): {
         return [
           {
             entity_id: this.getEntityId(cconst.ENTITIES.sessionEnergy),
@@ -365,7 +349,7 @@ class ChargerCard extends LitElement {
           },
         ];
       }
-      case cconst.CHARGERSTATUS.READY_4: {
+      case this.getOverride('READY_4', cconst.CHARGERSTATUS.READY_4): {
         return [
           {
             entity_id: this.getEntityId(cconst.ENTITIES.sessionEnergy),
@@ -384,7 +368,7 @@ class ChargerCard extends LitElement {
           },
         ];
       }
-      case cconst.CHARGERSTATUS.ERROR_5: {
+      case this.getOverride('ERROR_5', cconst.CHARGERSTATUS.ERROR_5): {
         return [
           {
             entity_id: this.getEntityId(cconst.ENTITIES.sessionEnergy),
@@ -398,7 +382,7 @@ class ChargerCard extends LitElement {
           },
         ];
       }
-      case cconst.CHARGERSTATUS.CONNECTED_6: {
+      case this.getOverride('CONNECTED_6', cconst.CHARGERSTATUS.CONNECTED_6): {
         return [
           {
             entity_id: this.getEntityId(cconst.ENTITIES.sessionEnergy),
@@ -438,14 +422,16 @@ class ChargerCard extends LitElement {
   updated(changedProps) {
     if (
       changedProps.get('hass') &&
-      changedProps.get('hass').states[this.config.entity].state !==
-        this.hass.states[this.config.entity].state
+      changedProps.get('hass').states[
+        this.getOverride('entity', this.config.entity)
+      ].state !==
+        this.hass.states[this.getOverride('entity', this.config.entity)].state
     ) {
       this.requestInProgress = false;
     }
   }
 
-  handleMore(entity = this.entity) {
+  handleMore(entity = this.getOverride('entity', this.entity)) {
     fireEvent(
       this,
       'hass-more-info',
@@ -461,23 +447,38 @@ class ChargerCard extends LitElement {
 
   setServiceData(service, isRequest, e) {
     switch (service) {
-      case cconst.SERVICES.chargerMaxCurrent: {
+      case this.getOverride(
+        'chargerMaxCurrent',
+        cconst.SERVICES.chargerMaxCurrent
+      ): {
         const current = e.target.getAttribute('value');
         return this.callService(service, isRequest, { current });
       }
-      case cconst.SERVICES.chargerDynCurrent: {
+      case this.getOverride(
+        'chargerDynCurrent',
+        cconst.SERVICES.chargerDynCurrent
+      ): {
         const current = e.target.getAttribute('value');
         return this.callService(service, isRequest, { current });
       }
-      case cconst.SERVICES.circuitOfflineCurrent: {
+      case this.getOverride(
+        'circuitOfflineCurrent',
+        cconst.SERVICES.circuitOfflineCurrent
+      ): {
         const currentP1 = e.target.getAttribute('value');
         return this.callService(service, isRequest, { currentP1 });
       }
-      case cconst.SERVICES.circuitMaxCurrent: {
+      case this.getOverride(
+        'circuitMaxCurrent',
+        cconst.SERVICES.circuitMaxCurrent
+      ): {
         const currentP1 = e.target.getAttribute('value');
         return this.callService(service, isRequest, { currentP1 });
       }
-      case cconst.SERVICES.circuitDynCurrent: {
+      case this.getOverride(
+        'circuitDynCurrent',
+        cconst.SERVICES.circuitDynCurrent
+      ): {
         const currentP1 = e.target.getAttribute('value');
         return this.callService(service, isRequest, { currentP1 });
       }
@@ -497,7 +498,7 @@ class ChargerCard extends LitElement {
   }
 
   getAttributes(entity) {
-    const {
+    let {
       status,
       state,
       friendly_name,
@@ -506,6 +507,14 @@ class ChargerCard extends LitElement {
       icon,
     } = entity.attributes;
 
+    if (this.getOverride('entity', null)) {
+      status = this.getOverride('entity', '', 'status');
+      state = this.getOverride('entity', '', 'state');
+      friendly_name = this.getOverride('entity', '', 'friendly_name');
+      name = this.getOverride('entity', '', 'name');
+      site_name = this.getOverride('entity', '', 'site_name');
+      icon = this.getOverride('entity', '', 'icon');
+    }
     return {
       status: status || state,
       friendly_name,
@@ -551,7 +560,9 @@ class ChargerCard extends LitElement {
       }
 
       const smartCharging = this.getEntityState(
-        this.getEntity(cconst.ENTITIES.smartCharging)
+        this.getEntity(
+          this.getOverride('smartCharging', cconst.ENTITIES.smartCharging)
+        )
       );
       return html`<img
         class="charger led${compactview}"
@@ -615,7 +626,12 @@ class ChargerCard extends LitElement {
     );
   }
 
-  renderStatsHtml(value, unit, subtitle, entity = this.entity) {
+  renderStatsHtml(
+    value,
+    unit,
+    subtitle,
+    entity = this.getOverride('entity', this.entity)
+  ) {
     return html`
       <div
         class="stats-block"
@@ -630,7 +646,9 @@ class ChargerCard extends LitElement {
   }
 
   renderName() {
-    const { name, site_name } = this.getAttributes(this.entity);
+    const { name, site_name } = this.getAttributes(
+      this.getOverride('entity', this.entity)
+    );
     if (!this.showName) {
       return html``;
     }
@@ -661,7 +679,7 @@ class ChargerCard extends LitElement {
       compactview = '-compact';
     }
 
-    const { state } = this.entity;
+    const { state } = this.getOverride('entity', this.entity);
     const { reasonForNoCurrent } = this.getEntities();
     const localizedStatus = localize(`status.${state}`) || state;
     let subStatusText =
@@ -734,7 +752,8 @@ class ChargerCard extends LitElement {
             ${this.renderCollapsibleItems(costPerKwh, 'Energy cost')}
             ${this.renderCollapsibleItems(updateAvailable, 'Update Available')}
             ${updateAvailableState === 'on' &&
-            this.entity.state === cconst.CHARGERSTATUS.STANDBY_1
+            this.getOverride('entity', this.entity).state ===
+              this.getOverride('STANDBY_1', cconst.CHARGERSTATUS.STANDBY_1)
               ? this.renderCollapsibleServiceItems(
                   undefined,
                   'update_firmware',
@@ -744,7 +763,8 @@ class ChargerCard extends LitElement {
                 )
               : ''}
             ${updateAvailableState === 'on' &&
-            this.entity.state === cconst.CHARGERSTATUS.STANDBY_1
+            this.getOverride('entity', this.entity).state ===
+              this.getOverride('STANDBY_1', cconst.CHARGERSTATUS.STANDBY_1)
               ? this.renderCollapsibleServiceItems(
                   undefined,
                   'reboot',
@@ -853,7 +873,10 @@ class ChargerCard extends LitElement {
           <div class="content-inner-lim">
             ${this.renderCollapsibleDropDownItems(
               maxChargerCurrent,
-              cconst.SERVICES.chargerMaxCurrent,
+              this.getOverride(
+                'chargerMaxCurrent',
+                cconst.SERVICES.chargerMaxCurrent
+              ),
               'Max Charger',
               undefined,
               'Max Charger Limit',
@@ -861,7 +884,10 @@ class ChargerCard extends LitElement {
             )}
             ${this.renderCollapsibleDropDownItems(
               dynamicChargerCurrent,
-              cconst.SERVICES.chargerDynCurrent,
+              this.getOverride(
+                'chargerDynCurrent',
+                cconst.SERVICES.chargerDynCurrent
+              ),
               'Dyn Charger',
               undefined,
               'Dyn Charger Limit',
@@ -869,7 +895,10 @@ class ChargerCard extends LitElement {
             )}
             ${this.renderCollapsibleDropDownItems(
               maxCircuitCurrent,
-              cconst.SERVICES.circuitMaxCurrent,
+              this.getOverride(
+                'circuitMaxCurrent',
+                cconst.SERVICES.circuitMaxCurrent
+              ),
               'Max Circuit',
               undefined,
               'Max Circuit Limit',
@@ -877,7 +906,10 @@ class ChargerCard extends LitElement {
             )}
             ${this.renderCollapsibleDropDownItems(
               dynamicCircuitCurrent,
-              cconst.SERVICES.circuitDynCurrent,
+              this.getOverride(
+                'circuitDynCurrent',
+                cconst.SERVICES.circuitDynCurrent
+              ),
               'Dyn Circuit',
               undefined,
               'Dyn Circuit Limit',
@@ -885,7 +917,10 @@ class ChargerCard extends LitElement {
             )}
             ${this.renderCollapsibleDropDownItems(
               offlineCircuitCurrent,
-              cconst.SERVICES.circuitOfflineCurrent,
+              this.getOverride(
+                'circuitOfflineCurrent',
+                cconst.SERVICES.circuitOfflineCurrent
+              ),
               'Off Lim',
               undefined,
               'Offline Limit',
@@ -963,7 +998,7 @@ class ChargerCard extends LitElement {
       return html``;
     }
 
-    const sources = cconst.CURRENTLIMITS;
+    const sources = this.getOverride('CURRENTLIMITS', cconst.CURRENTLIMITS);
     let value = this.getEntityState(entity);
     let selected = sources.indexOf(value);
     let useUnit = this.getEntityAttribute(entity, 'unit_of_measurement');
@@ -1043,10 +1078,17 @@ class ChargerCard extends LitElement {
 
   renderIcon(entity) {
     let entity_id = entity.entity_id;
-    let icon =
-      this.getEntityAttribute(entity, 'icon') == !null
-        ? this.getEntityAttribute(entity, 'icon')
-        : cconst.ICONS[this.getEntityBase(entity_id)] || 'mdi:cancel';
+    let icon = 'mdi:cancel';
+    try {
+      icon =
+        this.getEntityAttribute(entity, 'icon') == !null
+          ? this.getEntityAttribute(entity, 'icon')
+          : this.getOverride('ICONS', cconst.ICONS)[
+              this.getEntityBase(entity_id)
+            ] || 'mdi:cancel';
+    } catch (e) {
+      icon = false;
+    }
     let domainIcon =
       this.getEntityAttribute(entity, 'device_class') == !null
         ? domainIcon(
@@ -1075,11 +1117,11 @@ class ChargerCard extends LitElement {
 
     /* STATE BUTTONS */
     switch (state) {
-      case cconst.CHARGERSTATUS.STANDBY_1: {
+      case this.getOverride('STANDBY_1', cconst.CHARGERSTATUS.STANDBY_1): {
         stateButtons = html``;
         break;
       }
-      case cconst.CHARGERSTATUS.PAUSED_2: {
+      case this.getOverride('PAUSED_2', cconst.CHARGERSTATUS.PAUSED_2): {
         stateButtons = html`
           ${this.renderToolbarButton('stop', 'hass:stop', 'common.stop')}
           ${this.renderToolbarButton(
@@ -1095,14 +1137,14 @@ class ChargerCard extends LitElement {
         `;
         break;
       }
-      case cconst.CHARGERSTATUS.CHARGING_3: {
+      case this.getOverride('CHARGING_3', cconst.CHARGERSTATUS.CHARGING_3): {
         stateButtons = html`
           ${this.renderToolbarButton('pause', 'hass:pause', 'common.pause')}
           ${this.renderToolbarButton('stop', 'hass:stop', 'common.stop')}
         `;
         break;
       }
-      case cconst.CHARGERSTATUS.READY_4: {
+      case this.getOverride('READY_4', cconst.CHARGERSTATUS.READY_4): {
         stateButtons = html`
           ${this.renderToolbarButton('stop', 'hass:stop', 'common.stop')}
           ${this.renderToolbarButton(
@@ -1113,13 +1155,13 @@ class ChargerCard extends LitElement {
         `;
         break;
       }
-      case cconst.CHARGERSTATUS.ERROR_5: {
+      case this.getOverride('ERROR_5', cconst.CHARGERSTATUS.ERROR_5): {
         stateButtons = html`
           ${this.renderToolbarButton('reboot', 'hass:restart', 'common.reboot')}
         `;
         break;
       }
-      case cconst.CHARGERSTATUS.CONNECTED_6: {
+      case this.getOverride('CONNECTED_6', cconst.CHARGERSTATUS.CONNECTED_6): {
         stateButtons = html`
           ${this.renderToolbarButton('stop', 'hass:stop', 'common.stop')}
           ${this.renderToolbarButton(
@@ -1167,7 +1209,7 @@ class ChargerCard extends LitElement {
   }
 
   renderCompact() {
-    const { state } = this.entity;
+    const { state } = this.getOverride('entity', this.entity);
     return html`
       <ha-card>
         <div class="preview-compact">
@@ -1188,7 +1230,7 @@ class ChargerCard extends LitElement {
   }
 
   renderFull() {
-    const { state } = this.entity;
+    const { state } = this.getOverride('entity', this.entity);
 
     return html`
       <ha-card>
@@ -1267,7 +1309,7 @@ class ChargerCard extends LitElement {
   render() {
     this.renderCustomCardTheme();
 
-    if (!this.entity) {
+    if (!this.getOverride('entity', this.entity)) {
       return html`
         <ha-card>
           <div class="preview not-available">
